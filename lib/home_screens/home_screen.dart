@@ -1461,7 +1461,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               imageUrl!.isNotEmpty
                           ? (imageUrl!.startsWith('http')
                               ? imageUrl!
-                              : "https://c502-39-60-230-244.ngrok-free.app${imageUrl!.startsWith('/') ? imageUrl : '/$imageUrl'}")
+                              : "${ApiService().image_url}${imageUrl!.startsWith('/') ? imageUrl : '/$imageUrl'}")
                           : ''),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
@@ -1476,12 +1476,14 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           );
                         } else if (snapshot.hasData && snapshot.data == true) {
+                          print(
+                              "Profile Image Url: ${ApiService().image_url}$imageUrl");
                           // ✅ Image exists, show image
                           return CircleAvatar(
                             radius: 6.5.w,
                             backgroundColor: Colors.grey[300],
                             backgroundImage: NetworkImage(
-                              "https://c502-39-60-230-244.ngrok-free.app$imageUrl",
+                              "${ApiService().image_url}$imageUrl",
                             ),
                           );
                         } else {

@@ -1,11 +1,13 @@
-// ignore_for_file: library_private_types_in_public_api, use_key_in_widget_constructors, use_build_context_synchronously, non_constant_identifier_names
+// ignore_for_file: library_private_types_in_public_api, use_key_in_widget_constructors, use_build_context_synchronously, non_constant_identifier_names, avoid_print, prefer_iterable_wheretype, unnecessary_type_check, unused_element
 
+import 'dart:convert';
 import 'package:carl/api/api_service.dart';
 import 'package:carl/generated_results_log_recepies/recipe_main_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:logger/web.dart';
 import 'package:responsive_sizer/responsive_sizer.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shimmer/shimmer.dart';
 
 class ExploreRecipe extends StatefulWidget {
   final Map<String, dynamic>? ai_recipes_data;
@@ -21,6 +23,8 @@ class ExploreRecipe extends StatefulWidget {
 class _ExploreRecipeState extends State<ExploreRecipe> {
   int _currentRecipeIndex = 0;
   List<Map<String, dynamic>> _recipes = [];
+  List<Map<String, dynamic>> _recipeImages = [];
+  bool _isLoadingImages = true;
   final GlobalKey<ScaffoldMessengerState> _messengerKey =
       GlobalKey<ScaffoldMessengerState>();
 
@@ -34,11 +38,46 @@ class _ExploreRecipeState extends State<ExploreRecipe> {
 
     // Handle the API response structure
     if (widget.ai_recipes_data != null) {
-      // Extract all recipe maps (values of "Recipe 1", "Recipe 2", etc.) into _recipes
       _recipes = widget.ai_recipes_data!.values
-          .where((recipe) => recipe is Map<String, dynamic>)
-          .cast<Map<String, dynamic>>()
+          .where((recipe) => recipe is Map)
+          .map((recipe) => (recipe as Map).cast<String, dynamic>())
           .toList();
+      print('Parsed recipes: $_recipes');
+    }
+
+    // Fetch recipe images
+    _fetchRecipeImages();
+  }
+
+  Future<void> _fetchRecipeImages() async {
+    setState(() {
+      _isLoadingImages = true;
+    });
+    try {
+      final List<Map<String, dynamic>> images =
+          await ApiService().getAIRecipesImages(context);
+      print('Raw images response: $images');
+      print('Images type: ${images.runtimeType}');
+      if (mounted) {
+        setState(() {
+          _recipeImages = images;
+          _isLoadingImages = false;
+        });
+        print('Recipe images loaded: $_recipeImages');
+      }
+    } catch (e) {
+      print('Error fetching recipe images: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingImages = false;
+        });
+        _messengerKey.currentState?.showSnackBar(
+          const SnackBar(
+            content: Text('Unable to load recipe images. Please try again.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
@@ -56,6 +95,20 @@ class _ExploreRecipeState extends State<ExploreRecipe> {
 
       currentRecipe = _recipes[_currentRecipeIndex];
       print("hassan:=>........${currentRecipe['Recipe Title']}");
+    }
+
+    // Find matching image for current recipe
+    String? recipeImageData;
+    final recipeName = currentRecipe?['Recipe Name'] as String?;
+    if (recipeName != null) {
+      final matchingImage = _recipeImages.firstWhere(
+        (img) =>
+            img['recipe_name']?.toString().trim().toLowerCase() ==
+            recipeName.toLowerCase().trim(),
+        orElse: () => {},
+      );
+      recipeImageData = matchingImage['image'] as String?;
+      print('Matched image for $recipeName: $recipeImageData');
     }
 
     return ScaffoldMessenger(
@@ -140,7 +193,9 @@ class _ExploreRecipeState extends State<ExploreRecipe> {
                           Navigator.push(context, MaterialPageRoute(
                             builder: (context) {
                               return RecipeScreen(
-                                  ai_one_recipes_detail_data: currentRecipe);
+                                ai_one_recipes_detail_data: currentRecipe,
+                                recipe_Image: recipeImageData,
+                              );
                             },
                           ));
                         },
@@ -150,14 +205,7 @@ class _ExploreRecipeState extends State<ExploreRecipe> {
                               bottomLeft: Radius.circular(20),
                               bottomRight: Radius.circular(20),
                             ),
-                            child: Image.asset(
-                              'assests/generated_results_log_recepies/recipe_dish.png',
-                              height: 65.sp,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return const Text('Image failed to load');
-                              },
-                            ),
+                            child: _buildRecipeImage(recipeImageData),
                           ),
                         ),
                       ),
@@ -193,8 +241,7 @@ class _ExploreRecipeState extends State<ExploreRecipe> {
                           showDialog(
                             context: context,
                             builder: (context) => FeedbackDialog(
-                              onSubmit:
-                                  _showSnackBar, // Pass the snackbar method
+                              onSubmit: _showSnackBar,
                             ),
                           );
                         },
@@ -231,6 +278,73 @@ class _ExploreRecipeState extends State<ExploreRecipe> {
         ),
       ),
     );
+  }
+
+  Widget _buildRecipeImage(String? recipeImageData) {
+    const String staticImagePath =
+        'assests/generated_results_log_recepies/recipe_dish.png';
+    final double imageHeight = 65.sp;
+
+    // Show shimmer while loading
+    if (_isLoadingImages) {
+      return Shimmer.fromColors(
+        baseColor: Colors.grey[300]!,
+        highlightColor: Colors.grey[100]!,
+        child: Container(
+          height: imageHeight,
+          width: double.infinity,
+          color: Colors.white,
+        ),
+      );
+    }
+
+    // If no matching image or image data is null, show static image
+    if (recipeImageData == null) {
+      return Image.asset(
+        staticImagePath,
+        height: imageHeight,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          print('Static image failed to load: $error');
+          return const Text('Image failed to load');
+        },
+      );
+    }
+
+    // Decode base64 image
+    try {
+      final imageBytes = base64Decode(recipeImageData);
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(500),
+        child: Image.memory(
+          imageBytes,
+          height: 75.sp,
+          width: 75.sp,
+          fit: BoxFit.fill,
+          errorBuilder: (context, error, stackTrace) {
+            print('Base64 image failed to load: $error');
+            return Image.asset(
+              staticImagePath,
+              height: imageHeight,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return const Text('Image failed to load');
+              },
+            );
+          },
+        ),
+      );
+    } catch (e) {
+      print('Error decoding base64 image: $e');
+      return Image.asset(
+        staticImagePath,
+        height: imageHeight,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return const Text('Image failed to load');
+        },
+      );
+    }
   }
 
   void _showSnackBar(String message) {
@@ -298,7 +412,7 @@ class _Dot extends StatelessWidget {
 }
 
 class FeedbackDialog extends StatefulWidget {
-  final Function(String) onSubmit; // Callback to show SnackBar
+  final Function(String) onSubmit;
 
   FeedbackDialog({required this.onSubmit});
 
@@ -321,7 +435,6 @@ class _FeedbackDialogState extends State<FeedbackDialog> {
       _isSubmitting = true;
     });
 
-    // Call the API with only feedback_before_cooking
     final response = await ApiService().feedbackRatingApi(
       context,
       feedback_before_cooking: feedback,

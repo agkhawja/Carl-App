@@ -203,7 +203,7 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
                                   children: [
                                     Text(
                                       currentIngredient.name,
-                                      overflow: TextOverflow.ellipsis,
+                                      // overflow: TextOverflow.ellipsis,
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
                                         fontSize: 18.sp,

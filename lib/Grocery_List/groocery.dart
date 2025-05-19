@@ -58,6 +58,8 @@ class _GroceryScreenState extends State<GroceryScreen> {
   Future<void> _fetchData() async {
     try {
       setState(() => isLoading = true);
+
+      // Fetch user data
       allData = await ApiService().getAllUserData(context);
       if (allData == null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -67,6 +69,37 @@ class _GroceryScreenState extends State<GroceryScreen> {
         return;
       }
 
+      // Fetch previous grocery data
+      final actualGroceryResponse =
+          await ApiService().getAllActualGroceryData(context);
+      List<Map<String, String>> previousGroceryData = [];
+      if (actualGroceryResponse != null &&
+          actualGroceryResponse['data'] != null) {
+        previousGroceryData = (actualGroceryResponse['data'] as List)
+            .map((item) => {
+                  "grocery_title":
+                      item['grocery_title']?.toString() ?? 'Unknown'
+                })
+            .toList()
+            .reversed
+            .toList(); // Reverse to match actualGrocery order
+        logger.d('Previous Grocery Data: $previousGroceryData');
+      }
+
+      // Fetch pantry items
+      final pantryResponse = await ApiService().getAllPantryData(context);
+      List<Map<String, String>> pantryItems = [];
+      if (pantryResponse != null && pantryResponse['data'] != null) {
+        pantryItems = (pantryResponse['data'] as List)
+            .map((item) =>
+                {"Ingredient": item['Ingredient']?.toString() ?? 'Unknown'})
+            .toList()
+            .reversed
+            .toList(); // Reverse to show latest items first
+        logger.d('Pantry Items: $pantryItems');
+      }
+
+      // Construct userData map
       final userData = {
         "user_data": {
           "weight": allData!['weight']?.toString() ?? 'N/A',
@@ -96,10 +129,13 @@ class _GroceryScreenState extends State<GroceryScreen> {
               _ensureList(allData!['sport_do_you_practice']),
           "body_composition_goal":
               allData!['body_composition_goal']?.toString() ?? 'N/A',
-          "primary_goal": allData!['primary_goal']?.toString() ?? 'N/A',
+          "primary_goal": allData!['primary_goal']?.toString() ?? 'N/A'
         },
+        "pantry_items": pantryItems,
+        "previous_grocery_data": previousGroceryData,
       };
 
+      // Fetch AI-generated grocery suggestions
       final groceryResponse =
           await ApiService().generateGrocerythroughAIApi(userData);
       if (groceryResponse == null || groceryResponse['Grocery list'] == null) {
@@ -817,27 +853,6 @@ class _GroceryScreenState extends State<GroceryScreen> {
                       fontWeight: FontWeight.w400,
                       color: Color(0xff0A0615)),
                 ),
-                // ElevatedButton(
-                //   style: ElevatedButton.styleFrom(
-                //     fixedSize: Size(24.w, 1.h),
-                //     backgroundColor: Colors.black,
-                //     shape: StadiumBorder(),
-                //   ),
-                //   onPressed: () => setState(() {
-                //     for (var item in smartSuggestions) {
-                //       if (!item.isAdded) {
-                //         addItemToGrocery(item);
-                //       }
-                //     }
-                //   }),
-                //   child: Text(
-                //     "Add All",
-                //     style: GoogleFonts.roboto(
-                //         fontSize: 16.sp,
-                //         fontWeight: FontWeight.w400,
-                //         color: Colors.white),
-                //   ),
-                // ),
               ],
             ),
             SizedBox(height: 2.h),

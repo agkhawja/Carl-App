@@ -58,7 +58,7 @@ class _PantryScreenState extends State<PantryScreen> {
                             .skip(1)
                             .join(' ') ??
                         '',
-                  }));
+                  })).reversed.toList(); // Reverse pantryItems here
         });
         logger.d('Pantry Items: $pantryItems');
       } else {
@@ -114,14 +114,10 @@ class _PantryScreenState extends State<PantryScreen> {
   // Get filtered items based on search query
   List<Map<String, dynamic>> get filteredItems {
     final query = searchController.text.toLowerCase();
-    return pantryItems
-        .where((item) {
-          final title = item['title']?.toLowerCase() ?? '';
-          return title.contains(query);
-        })
-        .toList()
-        .reversed
-        .toList();
+    return pantryItems.where((item) {
+      final title = item['title']?.toLowerCase() ?? '';
+      return title.contains(query);
+    }).toList();
   }
 
   // Toggle favorite status with API call
@@ -163,19 +159,11 @@ class _PantryScreenState extends State<PantryScreen> {
         final result =
             await ApiService().pantryAddtoFavouriteApi(context, true, parsedId);
         logger.d('Add to favorite result: $result');
-        // Assume success if no exception and result is a Map (adjust based on actual API response)
+        // Assume success if no exception and result is a Map
         success = result != null && (result is Map);
       }
 
       if (success) {
-        if (!mounted) return;
-        setState(() {
-          if (isCurrentlyFavorited) {
-            likedItems.remove(index);
-          } else {
-            likedItems.add(index);
-          }
-        });
         // Refresh favorite data to ensure consistency
         final favoriteResponse =
             await ApiService().getAllLikedPantryItemsData(context);
@@ -192,12 +180,17 @@ class _PantryScreenState extends State<PantryScreen> {
                 orElse: () => {'isFavourite': false},
               );
               if (favoriteItem['isFavourite'] == true) {
-                likedItems.add(i);
+                // Map filteredItems index to pantryItems index
+                final pantryIndex = pantryItems
+                    .indexWhere((item) => item['id'] == pantryItemId);
+                if (pantryIndex != -1) {
+                  likedItems.add(pantryIndex);
+                }
               }
             }
           });
-          logger.d(
-              'Refreshed Favorite Items: $favoriteItems, Liked Items: $likedItems');
+          logger.d('Refreshed Favorite Items: $favoriteItems');
+          logger.d('Liked Items: $likedItems');
         }
       } else {
         throw Exception(
@@ -703,6 +696,9 @@ class _PantryScreenState extends State<PantryScreen> {
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
                           final item = filteredItems[index];
+                          // Map filteredItems index to pantryItems index
+                          final pantryIndex = pantryItems
+                              .indexWhere((pi) => pi['id'] == item['id']);
                           return Padding(
                             padding: EdgeInsets.symmetric(horizontal: 4.w),
                             child: Card(
@@ -759,20 +755,20 @@ class _PantryScreenState extends State<PantryScreen> {
                                       children: [
                                         IconButton(
                                           icon: Icon(
-                                            likedItems.contains(index)
+                                            likedItems.contains(pantryIndex)
                                                 ? Icons.favorite
                                                 : Icons.favorite_border,
                                             color: Colors.black,
                                             size: 20.sp,
                                           ),
                                           onPressed: () =>
-                                              toggleFavorite(index, item),
+                                              toggleFavorite(pantryIndex, item),
                                         ),
                                         IconButton(
                                           icon: Image.asset(
                                               'assests/Pantry/delete_icon.png'),
-                                          onPressed: () =>
-                                              deletePantryItem(index, item),
+                                          onPressed: () => deletePantryItem(
+                                              pantryIndex, item),
                                         ),
                                       ],
                                     ),

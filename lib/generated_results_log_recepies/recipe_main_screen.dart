@@ -1,3 +1,8 @@
+// ignore_for_file: avoid_print, non_constant_identifier_names, library_private_types_in_public_api
+
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:carl/generated_results_log_recepies/ingredients_screen.dart';
 import 'package:carl/generated_results_log_recepies/recipe_detail_screen.dart';
 import 'package:carl/generated_results_log_recepies/steps_screen.dart';
@@ -6,8 +11,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:responsive_sizer/responsive_sizer.dart';
 
 class RecipeScreen extends StatefulWidget {
+  final String? recipe_Image;
   final Map<String, dynamic>? ai_one_recipes_detail_data;
-  RecipeScreen({super.key, this.ai_one_recipes_detail_data});
+  const RecipeScreen(
+      {super.key, this.ai_one_recipes_detail_data, this.recipe_Image});
 
   @override
   _RecipeScreenState createState() => _RecipeScreenState();
@@ -15,10 +22,11 @@ class RecipeScreen extends StatefulWidget {
 
 class _RecipeScreenState extends State<RecipeScreen> {
   int _selectedTab = 0; // 0: Ingredients, 1: Steps, 2: Detail
-
+  Uint8List? imageBytes;
   @override
   void initState() {
     super.initState();
+    imageBytes = base64Decode(widget.recipe_Image ?? '');
   }
 
   @override
@@ -81,11 +89,35 @@ class _RecipeScreenState extends State<RecipeScreen> {
                             bottomLeft: Radius.circular(20),
                             bottomRight: Radius.circular(20),
                           ),
-                          child: Image.asset(
-                            'assests/generated_results_log_recepies/recipe_dish.png',
-                            height: 65.sp,
-                            fit: BoxFit.cover,
-                          ),
+                          child: widget.recipe_Image != null
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(500),
+                                  child: Image.memory(
+                                    imageBytes ?? Uint8List(0),
+                                    height: 75.sp,
+                                    width: 75.sp,
+                                    fit: BoxFit.fill,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      print(
+                                          'Base64 image failed to load: $error');
+                                      return Image.asset(
+                                        "assests/generated_results_log_recepies/recipe_dish.png",
+                                        height: 65.sp,
+                                        fit: BoxFit.cover,
+                                        errorBuilder:
+                                            (context, error, stackTrace) {
+                                          return const Text(
+                                              'Image failed to load');
+                                        },
+                                      );
+                                    },
+                                  ),
+                                )
+                              : Image.asset(
+                                  'assests/generated_results_log_recepies/recipe_dish.png',
+                                  height: 65.sp,
+                                  fit: BoxFit.cover,
+                                ),
                         ),
                       ),
                       SizedBox(height: 16),

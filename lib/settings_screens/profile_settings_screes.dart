@@ -311,7 +311,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                             ? FileImage(_image!)
                             : _imageUrl != null
                                 ? NetworkImage(
-                                    "${"https://c502-39-60-230-244.ngrok-free.app"}${_imageUrl!}")
+                                    "${"${ApiService().image_url}"}${_imageUrl!}")
                                 : null,
                         child: _image == null && _imageUrl == null
                             ? Icon(

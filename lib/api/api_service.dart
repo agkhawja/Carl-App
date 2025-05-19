@@ -9,9 +9,11 @@ import 'package:logger/web.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  final String url = 'https://9d23-119-156-121-136.ngrok-free.app/api';
-  //https://8f03-39-60-229-211.ngrok-free.app
-  //https://9d23-119-156-121-136.ngrok-free.app
+  final String url = 'https://6a6b-119-156-127-163.ngrok-free.app/api';
+  final String image_url = 'https://6a6b-119-156-127-163.ngrok-free.app';
+  final String ai_apis_url = 'https://ddfc-119-156-125-205.ngrok-free.app';
+  //https://ddfc-119-156-125-205.ngrok-free.app/
+  //https://ed6d-39-63-47-219.ngrok-free.app/docs
 
   Future<Map<String, dynamic>> signUpviaEmailPassword(
     BuildContext context,
@@ -176,6 +178,47 @@ class ApiService {
           'name': 'NetworkError'
         }
       };
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getAIRecipesImages(
+    BuildContext context,
+  ) async {
+    try {
+      final String url = '$ai_apis_url/get-recipe-summary/';
+      final response = await http.get(
+        Uri.parse(url),
+        headers: <String, String>{
+          'accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final dynamic decoded = json.decode(response.body);
+        print('API Raw Response: ${response.body}');
+        Logger().d('API Raw Response: ${response.body}');
+
+        if (decoded is List) {
+          final List<Map<String, dynamic>> item = decoded
+              .where((item) => item is Map)
+              .map((item) =>
+                  (item as Map<dynamic, dynamic>).cast<String, dynamic>())
+              .toList();
+          print('API Decoded Response: $item');
+          Logger().d('API Decoded Response: $item');
+          return item;
+        } else {
+          throw Exception(
+              'Unexpected response type: ${decoded.runtimeType}, expected List');
+        }
+      } else {
+        throw Exception(
+            'HTTP error: ${response.statusCode} - ${response.reasonPhrase}');
+      }
+    } catch (e) {
+      print('Error fetching recipe images: $e');
+      Logger().e('Error fetching recipe images: $e');
+      throw Exception('Failed to fetch recipe images: $e');
     }
   }
 
@@ -539,6 +582,95 @@ class ApiService {
           'message': 'Network error: $e',
           'status': 0,
           'name': 'NetworkError'
+        }
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> emailSendOtp(
+    BuildContext context,
+    String email,
+  ) async {
+    try {
+      String i = '$ai_apis_url/Email/';
+      final response = await http.post(
+        Uri.parse(i),
+        headers: <String, String>{
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({"email": email}),
+      );
+
+      print('Status Code: ${response.statusCode}');
+      print('Raw Response: ${response.body}');
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        Map<String, dynamic> item = json.decode(response.body);
+        print('API Decoded Response: $item');
+        return item;
+      } else {
+        return {
+          'error': {
+            'message': 'Failed to Send OTP: ${response.body}',
+            'status': response.statusCode,
+            'name': 'APIError'
+          }
+        };
+      }
+    } catch (e) {
+      print('Error Occurred: $e');
+      return {
+        'error': {
+          'message': 'Network error: $e',
+          'status': 0,
+          'name': 'NetworkError'
+        }
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> emailVerifyOtp(
+    BuildContext context,
+    String email,
+    String otp,
+  ) async {
+    try {
+      String i = '$ai_apis_url/verify-otp/';
+      final response = await http.post(
+        Uri.parse(i),
+        headers: <String, String>{
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: json.encode({
+          "email": email,
+          "otp": otp,
+        }),
+      );
+
+      print('Status Code: ${response.statusCode}');
+      print('Raw Response: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        Map<String, dynamic> item = json.decode(response.body);
+        print('API Decoded Response: $item');
+        return item;
+      } else {
+        return {
+          'error': {
+            'message': 'Failed to verify OTP: ${response.body}',
+            'status': response.statusCode,
+            'name': 'APIError',
+          }
+        };
+      }
+    } catch (e) {
+      print('Error Occurred: $e');
+      return {
+        'error': {
+          'message': 'Network error: $e',
+          'status': 0,
+          'name': 'NetworkError',
         }
       };
     }
@@ -1126,9 +1258,8 @@ class ApiService {
 
   Future<Map<String, dynamic>> generateRecipes(
       Map<String, dynamic> userData) async {
-    const String apiUrl =
-        'https://d096-39-63-45-130.ngrok-free.app/generate-recipes/';
-    print("UsserData: ${userData}");
+    String apiUrl = '$ai_apis_url/generate-recipes/';
+    print("UsserData: $userData");
     Logger logger = Logger();
     logger.d(userData);
 
@@ -1159,11 +1290,8 @@ class ApiService {
 
   Future<Map<String, dynamic>> generateGrocerythroughAIApi(
       Map<String, dynamic> userData) async {
-    const String apiUrl =
-        'https://ee84-182-190-160-104.ngrok-free.app/generate-grocery-list/';
-    //https://ee84-182-190-160-104.ngrok-free.app/docs
-    //https://3ba3-119-154-234-132.ngrok-free.app/generate-grocery-list/
-    print("UserData: ${userData}");
+    String apiUrl = '$ai_apis_url/generate-grocery-list/';
+    print("UserData: $userData");
     Logger logger = Logger();
     logger.d(userData);
 
@@ -1435,8 +1563,7 @@ class ApiService {
       if (response.statusCode == 201) {
         final responseData = await response.stream.bytesToString();
         final jsonData = jsonDecode(responseData);
-        print(
-            "Image response:-------------------------------------${jsonData}");
+        print("Image response:-------------------------------------$jsonData");
         return jsonData;
       } else {
         throw Exception('Failed to upload image: ${response.statusCode}');
@@ -1476,7 +1603,7 @@ class ApiService {
       );
 
       Map<String, dynamic> item = json.decode(response.body);
-      print("service response:-------------------------------------${item}");
+      print("service response:-------------------------------------$item");
 
       return item;
     } catch (e) {
@@ -1518,7 +1645,7 @@ class ApiService {
       );
 
       Map<String, dynamic> item = json.decode(response.body);
-      print("service response:-------------------------------------${item}");
+      print("service response:-------------------------------------$item");
 
       return item;
     } catch (e) {

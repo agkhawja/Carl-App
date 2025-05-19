@@ -1,19 +1,30 @@
+// ignore_for_file: deprecated_member_use, use_build_context_synchronously
+
+import 'dart:async';
+import 'package:carl/api/api_service.dart';
 import 'package:carl/auth/password_reset_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:pinput/pinput.dart';
 import 'package:responsive_sizer/responsive_sizer.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class OtpForgotPasswordScreen extends StatefulWidget {
-  const OtpForgotPasswordScreen({super.key});
+  final String email;
+  const OtpForgotPasswordScreen({super.key, required this.email});
 
   @override
-  State<OtpForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
+  State<OtpForgotPasswordScreen> createState() =>
+      _OtpForgotPasswordScreenState();
 }
 
-class _ForgotPasswordScreenState extends State<OtpForgotPasswordScreen> {
+class _OtpForgotPasswordScreenState extends State<OtpForgotPasswordScreen> {
   String _otpCode = '';
   final FocusNode _focusNode = FocusNode();
   final TextEditingController _otpController = TextEditingController();
+  bool _isLoading = false; // Track loading state
+  Timer? _timer; // Timer for countdown
+  int _secondsRemaining = 300; // 5 minutes in seconds
+  bool _isResendDisabled = true; // Disable resend during countdown
 
   late final PinTheme defaultPinTheme;
   late final PinTheme focusedPinTheme;
@@ -23,6 +34,7 @@ class _ForgotPasswordScreenState extends State<OtpForgotPasswordScreen> {
   void initState() {
     super.initState();
 
+    // Initialize PinTheme
     defaultPinTheme = PinTheme(
       width: 12.w,
       height: 6.5.h,
@@ -45,6 +57,46 @@ class _ForgotPasswordScreenState extends State<OtpForgotPasswordScreen> {
         color: Colors.green.withOpacity(0.1),
       ),
     );
+
+    // Start the 5-minute countdown timer
+    _startTimer();
+  }
+
+  void _startTimer() {
+    _secondsRemaining = 300; // Reset to 5 minutes
+    _isResendDisabled = true;
+    _timer?.cancel(); // Cancel any existing timer
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_secondsRemaining <= 0) {
+        setState(() {
+          _isResendDisabled = false;
+          timer.cancel();
+        });
+      } else {
+        setState(() {
+          _secondsRemaining--;
+        });
+      }
+    });
+  }
+
+  String _formatTimer(int seconds) {
+    final minutes = (seconds ~/ 60).toString().padLeft(2, '0');
+    final secs = (seconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$secs';
+  }
+
+  void _showSnackBar(String message, {Color backgroundColor = Colors.red}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: GoogleFonts.roboto(fontSize: 16.sp),
+        ),
+        backgroundColor: backgroundColor,
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   void _onCompleted(String pin) {
@@ -53,28 +105,101 @@ class _ForgotPasswordScreenState extends State<OtpForgotPasswordScreen> {
     });
   }
 
-  void _onSubmit() {
+  Future<void> _onSubmit() async {
     if (_otpCode.length != 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Please enter a valid 6-digit code."),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("OTP Verified"),
-          backgroundColor: Colors.green,
-        ),
-      );
-      Navigator.push(context, MaterialPageRoute(
-        builder: (context) {
-          return PasswordResetScreen();
-        },
-      ));
-      // You can trigger API call or navigation here
+      _showSnackBar("Please enter a valid 6-digit code.");
+      return;
     }
+
+    if (_isLoading) return;
+
+    setState(() {
+      _isLoading = true; // Show loading indicator
+    });
+
+    try {
+      final response =
+          await ApiService().emailVerifyOtp(context, widget.email, _otpCode);
+
+      setState(() {
+        _isLoading = false; // Hide loading indicator
+      });
+
+      if (response.containsKey('error')) {
+        // API or network error
+        final error = response['error'];
+        _showSnackBar(
+          error['message'] ?? 'Failed to verify OTP. Please try again.',
+        );
+      } else {
+        // Success case
+        _showSnackBar(
+          "OTP verified successfully!",
+          backgroundColor: Colors.green,
+        );
+
+        // Navigate to PasswordResetScreen
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PasswordResetScreen(
+              email: widget.email,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      _showSnackBar("Unexpected error: $e");
+    }
+  }
+
+  Future<void> _onResend() async {
+    if (_isLoading || _isResendDisabled) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final response = await ApiService().emailSendOtp(context, widget.email);
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (response.containsKey('error')) {
+        final error = response['error'];
+        _showSnackBar(
+          error['message'] ?? 'Failed to resend OTP. Please try again.',
+        );
+      } else {
+        _otpController.clear();
+        setState(() {
+          _otpCode = '';
+        });
+        _startTimer(); // Reset and restart the timer
+        _showSnackBar(
+          "New OTP sent to ${widget.email}",
+          backgroundColor: Colors.green,
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      _showSnackBar("Unexpected error: $e");
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel(); // Cancel timer to prevent memory leaks
+    _focusNode.dispose();
+    _otpController.dispose();
+    super.dispose();
   }
 
   @override
@@ -89,7 +214,7 @@ class _ForgotPasswordScreenState extends State<OtpForgotPasswordScreen> {
             leading: const BackButton(color: Colors.black),
             title: Text(
               "Forget Password",
-              style: TextStyle(
+              style: GoogleFonts.roboto(
                 fontSize: 19.sp,
                 fontWeight: FontWeight.w400,
                 color: Colors.black,
@@ -104,17 +229,17 @@ class _ForgotPasswordScreenState extends State<OtpForgotPasswordScreen> {
               children: [
                 Text(
                   "Enter Code",
-                  style: TextStyle(
+                  style: GoogleFonts.roboto(
                     color: const Color(0xff2D5591),
-                    fontSize: 17.sp,
+                    fontSize: 18.sp,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 SizedBox(height: 0.8.h),
                 Text(
-                  "Enter a 6 digit code we have sent to your email.",
-                  style: TextStyle(
-                    fontSize: 15.sp,
+                  "Enter the 6-digit code sent to ${widget.email}.",
+                  style: GoogleFonts.roboto(
+                    fontSize: 16.sp,
                     color: Colors.black54,
                   ),
                 ),
@@ -134,23 +259,30 @@ class _ForgotPasswordScreenState extends State<OtpForgotPasswordScreen> {
                   pinputAutovalidateMode: PinputAutovalidateMode.onSubmit,
                   keyboardType: TextInputType.number,
                 ),
-                SizedBox(height: 2.h),
+                SizedBox(height: 3.h),
+                Align(
+                  alignment: Alignment.center,
+                  child: Text(
+                    "Time remaining: ${_isResendDisabled ? _formatTimer(_secondsRemaining) : 'Expired'}",
+                    style: GoogleFonts.roboto(
+                      fontSize: 17.sp,
+                      color: _isResendDisabled ? Color(0xff2D5591) : Colors.red,
+                    ),
+                  ),
+                ),
+                SizedBox(height: 1.h),
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Resend Code Clicked"),
-                          backgroundColor: Colors.black54,
-                        ),
-                      );
-                    },
+                    onPressed:
+                        _isLoading || _isResendDisabled ? null : _onResend,
                     child: Text(
                       "Resend",
-                      style: TextStyle(
-                        fontSize: 15.sp,
-                        color: Colors.grey,
+                      style: GoogleFonts.roboto(
+                        fontSize: 17.sp,
+                        color: _isLoading || _isResendDisabled
+                            ? Colors.grey[400]
+                            : Color(0xff707070),
                       ),
                     ),
                   ),
@@ -158,24 +290,46 @@ class _ForgotPasswordScreenState extends State<OtpForgotPasswordScreen> {
                 const Spacer(),
                 Align(
                   alignment: Alignment.centerRight,
-                  child: ElevatedButton.icon(
-                    onPressed: _onSubmit,
-                    icon: Icon(Icons.arrow_forward,
-                        color: Colors.white, size: 20.sp),
-                    label: Text(
-                      "Next",
-                      style: TextStyle(
-                        fontSize: 17.sp,
-                        color: Colors.white,
+                  child: SizedBox(
+                    width: 25.w,
+                    height: 4.5.h,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _onSubmit,
+
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey[700],
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 4.w,
+                          // vertical: 1.4.h,
+                        ),
                       ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[700],
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      padding: EdgeInsets.symmetric(
-                          horizontal: 6.w, vertical: 1.4.h),
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  "Next",
+                                  style: GoogleFonts.roboto(
+                                    fontSize: 17.sp,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                Icon(Icons.arrow_forward,
+                                    color: Colors.white, size: 18.sp),
+                              ],
+                            ),
+                      // icon:
                     ),
                   ),
                 ),

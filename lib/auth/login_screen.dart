@@ -1,8 +1,8 @@
-// ignore_for_file: use_build_context_synchronously
+// ignore_for_file: use_build_context_synchronously, avoid_print
 
 import 'package:carl/api/api_service.dart';
 import 'package:carl/auth/forgot_password.dart';
-import 'package:carl/onboarding_screens/onboarding_screen_1.dart';
+import 'package:carl/home_screens/home_main_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:responsive_sizer/responsive_sizer.dart';
@@ -89,7 +89,7 @@ class _LoginScreenState extends State<LoginScreen> {
             Navigator.pushAndRemoveUntil(
               context,
               MaterialPageRoute(
-                builder: (context) => OnboardingScreen1(),
+                builder: (context) => HomeMainScreen(),
               ),
               (route) => false,
             );
@@ -282,7 +282,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
-                SizedBox(height: 2.5.h),
+                SizedBox(height: 5.h),
 
                 // Forgot Password
                 Center(
@@ -297,7 +297,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Text(
                       "Forgot Password?",
                       style: TextStyle(
-                        fontSize: 15.sp,
+                        fontSize: 17.sp,
                         color: Colors.grey.shade800,
                       ),
                     ),

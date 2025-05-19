@@ -25,6 +25,7 @@ class QuestionFourScreen extends StatefulWidget {
 
 class _QuestionFourScreenState extends State<QuestionFourScreen> {
   final Map<String, double> _imageData = {
+    //{name: abdullah, image: http://q},
     'https://images.unsplash.com/photo-1540420773420-3366772f4999?q=80&w=3084&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D':
         1.0,
     'https://images.unsplash.com/photo-1535229398509-70179087ac75?q=80&w=3087&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D':
@@ -51,10 +52,12 @@ class _QuestionFourScreenState extends State<QuestionFourScreen> {
 
   String? _selectedImageUrl;
   var allData;
+  var foodPrefsData; // New variable to store food preferences data
   bool _isLoading = true;
   bool _isGenerating = false;
   final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey =
       GlobalKey<ScaffoldMessengerState>();
+  final Logger logger = Logger(); // Initialize logger
 
   @override
   void initState() {
@@ -76,19 +79,25 @@ class _QuestionFourScreenState extends State<QuestionFourScreen> {
       if (userJson == null) {
         throw Exception('User data not found in SharedPreferences');
       }
-      // int userId = json.decode(userJson)['id'];
 
+      // Fetch user data
       allData = await ApiService().getAllUserData(context);
+      logger.d('User Data: $allData');
 
-      Logger logger = Logger();
-      print("*******************");
-      logger.d(allData);
-      print("*******************");
+      // Fetch food preferences data
+      foodPrefsData = await ApiService().foodPrefrenceGetAllData(context);
+      logger.d('Food Preferences Data: $foodPrefsData');
+
+      if (foodPrefsData == null ||
+          foodPrefsData['data'] == null ||
+          foodPrefsData['data'].isEmpty) {
+        throw Exception('No food preferences data found');
+      }
     } catch (e) {
-      print('Error loading user data: $e');
+      print('Error loading data: $e');
       _scaffoldMessengerKey.currentState?.showSnackBar(
         SnackBar(
-          content: Text('Failed to load user data: $e'),
+          content: Text('Failed to load data: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -343,6 +352,18 @@ class _QuestionFourScreenState extends State<QuestionFourScreen> {
                                 return;
                               }
 
+                              if (foodPrefsData == null) {
+                                _scaffoldMessengerKey.currentState
+                                    ?.showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                        'Food preferences not loaded yet!'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                                return;
+                              }
+
                               setState(() {
                                 _isGenerating = true;
                               });
@@ -368,7 +389,7 @@ class _QuestionFourScreenState extends State<QuestionFourScreen> {
                                                 ?.toString() ??
                                             'N/A',
                                     "dietary_supplements": _ensureList(
-                                        allData['dietary_supplements']),
+                                        allData['dietary_suplements']),
                                     "sugary_drinks":
                                         allData['sugary_drinks']?.toString() ??
                                             'N/A',
@@ -411,14 +432,18 @@ class _QuestionFourScreenState extends State<QuestionFourScreen> {
                                         widget.people,
                                     "How_healthy_do_you_want_your_meal_to_be":
                                         widget.food
+                                  },
+                                  "food_preferences": {
+                                    "foods_you_like": foodPrefsData['data'][0]
+                                            ['foods_you_like'] ??
+                                        [],
+                                    "foods_to_Avoid": foodPrefsData['data'][0]
+                                            ['foods_to_Avoid'] ??
+                                        [],
+                                    "dietary_Preferences": foodPrefsData['data']
+                                            [0]['dietary_Preferences'] ??
+                                        []
                                   }
-                                  // "feedback": {
-                                  //   "rating_stars_after_cooking": 0,
-                                  //   "feedback_before_cooking":
-                                  //       "I don’t like spicy food” or “I’m allergic to some ingredients",
-                                  //   "feedback_after_cooking":
-                                  //       "The flavors were well-balanced and the dish wasn’t too spicy—just how I like it!"
-                                  // }
                                 };
 
                                 final aiRecipesData = await ApiService()
@@ -512,7 +537,6 @@ class _QuestionFourScreenState extends State<QuestionFourScreen> {
       if (value.toLowerCase() == 'n/a' || value.isEmpty) {
         return [];
       }
-      // Split the string if it contains commas (e.g., "item1, item2" -> ["item1", "item2"])
       return value.split(',').map((e) => e.trim()).toList();
     }
     return [];
